@@ -1,0 +1,7 @@
+.idea
+.stack-work
+.cabal-sandbox/
+cabal.sandbox.config
+*.iml
+dist
+dist-newstyle
