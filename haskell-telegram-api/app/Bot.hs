@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 import           Network.HTTP.Client      (newManager, managerSetProxy)
 import           Network.HTTP.Client.TLS  (tlsManagerSettings)
@@ -22,11 +22,18 @@ import           Data.Time.Clock
 myToken :: Token
 myToken = Token "bot789825659:AAFrTqMAKl3zmK_x05cOm66KmRpiTREWETU"
 
+
+postgresConnection :: IO Connection
 postgresConnection = connectPostgreSQL "host='localhost' port=5432 dbname='postgres' user='ilya' password='qwerty'"
 
+
+myThreadDelay :: Int
 myThreadDelay = 1000000
 
+
+adminId :: Int64
 adminId = 129563384
+
 
 main :: IO ()
 main = do
@@ -166,7 +173,7 @@ botBody id text = do
 
           let ans = createLibraryReply titled_links
           
-          mySendMessageHTML (fromIntegral id) (T.pack ans)
+          mySendMessageHTML (fromIntegral id) (ans)
           
           print (show ans)          
          
@@ -175,7 +182,7 @@ botBody id text = do
 
           reply <- getStats 
 
-          mySendMessageHTML (fromIntegral id) (T.pack reply)
+          mySendMessageHTML (fromIntegral id) (reply)
 
         _ -> do
           case lastmes of 
@@ -202,7 +209,7 @@ botBody id text = do
                   
                   let reply = "Ваша ссылка на материал на облачном хранилище успешно добавлена в базу!\n\nПерсональный ID для данной ссылки: #" ++ last_id
                   
-                  mySendMessageHTML (fromIntegral id) (T.pack reply)
+                  mySendMessageHTML (fromIntegral id) (reply)
                   
                   updateLastmes text id
                   
@@ -223,20 +230,20 @@ botBody id text = do
             
                 request <- getWith opts "https://bestproger.ru/abot/linker.php"
                 
-                let names = request ^.. responseBody . values . key "name" . _String
-                let links = request ^.. responseBody . values . key "link" . _String
-                let sizes = request ^.. responseBody . values . key "size" . _String
-                
+                let names = map show $ request ^.. responseBody . values . key "name" . _String
+                let links = map show $ request ^.. responseBody . values . key "link" . _String
+                let sizes = map show $ request ^.. responseBody . values . key "size" . _String
+
                 let glowed_links = sumStringList links
 
                 let params = defaults & param "links" .~ [T.pack glowed_links]
-                                      & param "id" .~ [T.pack (link_id)]
+                                      & param "id" .~ [T.pack link_id]
             
                 response <- getWith params "https://bestproger.ru/abot/get_links.php"
 
-                let reply = sumList names sizes links link_id 0
+                let reply = createHiddenLinks names sizes links link_id 0
 
-                mySendMessageHTML (fromIntegral id) (T.pack reply)
+                mySendMessageHTML (fromIntegral id) (reply)
 
                 updateLastmes text id
 
@@ -263,15 +270,15 @@ botBody id text = do
 
               let reply = "Описание к материалу с ID " ++ link_id_full ++ " успешно добавлено!"
 
-              mySendMessageHTML (fromIntegral id) (T.pack reply)
+              mySendMessageHTML (fromIntegral id) (reply)
 
               print title
             _ -> print "Not in case"
 
 
+getByIndex :: [String] -> Int -> String
 getByIndex (x : xs) index = if index == 0 then x else getByIndex xs (index - 1)
 
-myslice from to xs = take (to - from + 1) (drop from xs)
 
 mysplit :: String -> [String]
 mysplit [] = [""]
@@ -280,18 +287,22 @@ mysplit (c:cs) | c == ' '  = "" : rest
     where rest = mysplit cs
 
 
+sumStringList :: [String] -> String
 sumStringList [] = ""
-sumStringList (x : xs) = (T.unpack x) ++ ":::" ++ sumStringList xs
+sumStringList (x : xs) = x ++ ":::" ++ sumStringList xs
 
 
-sumList [] [] [] link_id count = ""
-sumList (x : xs) (z : zs) (y: ys) link_id count = "<b>" ++ (T.unpack x) ++ " (" ++ (T.unpack z) ++ ")</b>\n" ++ "https://bestproger.ru/abot/downloader.php?id=" ++ (link_id) ++ "_" ++ (show count) ++ "\n\n" ++ sumList xs zs ys link_id (count + 1)
+
+createHiddenLinks :: [String] -> [String] -> [String] -> String -> Int -> String
+createHiddenLinks [] [] [] link_id count = ""
+createHiddenLinks (x : xs) (z : zs) (y : ys) link_id count = "<b>" ++ x ++ " (" ++ z ++ ")</b>\n" ++ "https://bestproger.ru/abot/downloader.php?id=" ++ (link_id) ++ "_" ++ (show count) ++ "\n\n" ++ createHiddenLinks xs zs ys link_id (count + 1)
 
 
 substring :: Int -> Int -> String -> String
 substring start end text = take (end - start) (drop start text)
 
 
+getJSON :: String -> IO String
 getJSON link = do
     let text = link
     
@@ -312,13 +323,15 @@ findStr sub s
 
 getTitledLinks = do
   conn <- postgresConnection
-  query_ conn "select * from links where title != ''" :: IO [(Int, String, String, Int, String)]
+  query_ conn "select * from links where title != ''" :: IO [LinkRow]
 
+type LinkRow = (Int, String, String, Int, String)
 
-createLibraryReply :: [(Int, String, String, Int, String)] -> String
+createLibraryReply :: [LinkRow] -> String
 createLibraryReply ar = foldr (\(x, y, z, c, d) b -> "<b>" ++ d ++ "</b>\n\n" ++ b) mempty ar
 
 
+getUsername :: Int -> IO String
 getUsername id = do
   manager <- newManager tlsManagerSettings
 
@@ -339,6 +352,7 @@ getUsername id = do
     _ -> return ""
 
 
+updateLastmes :: String -> Int -> IO Bool
 updateLastmes lastmes id = do
   
   conn <- postgresConnection
@@ -348,6 +362,7 @@ updateLastmes lastmes id = do
   return True
 
 
+getLastmes :: Int -> IO String
 getLastmes id = do
   
   conn <- postgresConnection
@@ -359,6 +374,7 @@ getLastmes id = do
   return lastmes
 
 
+getLinkById :: String -> IO String
 getLinkById link_id = do
 
   conn <- postgresConnection
@@ -370,33 +386,39 @@ getLinkById link_id = do
   return link
 
 
+mySendMessageHTML :: Int64 -> String -> IO ()
 mySendMessageHTML id text = do
   manager <- newManager tlsManagerSettings
 
   ret <- runTelegramClient myToken manager $ do
-    let message_request = SendMessageRequest (ChatId id) text (Just HTML) Nothing Nothing Nothing Nothing
+    let message_request = SendMessageRequest (ChatId id) (T.pack text) (Just HTML) Nothing Nothing Nothing Nothing
 
     sendMessageM message_request
 
   print "HTML message sent!"
 
 
+mySendMessageWithButtons :: Int64 -> String -> ReplyKeyboard -> IO ()
 mySendMessageWithButtons id text kb = do
   manager <- newManager tlsManagerSettings
 
   ret <- runTelegramClient myToken manager $ do
-    let message_request = SendMessageRequest (ChatId id) text (Just HTML) Nothing Nothing Nothing (Just kb)
+    let message_request = SendMessageRequest (ChatId id) (T.pack text) (Just HTML) Nothing Nothing Nothing (Just kb)
     
     sendMessageM message_request
 
   print "Message with buttons Sent!"
 
 
+startButtons :: ReplyKeyboard
 startButtons = myReplyKeyboardMarkup [[keyboardButton "🙏Получить ID", keyboardButton "☁️Скачать по ID"], [keyboardButton "📕 Библиотека", keyboardButton "📊 Статистика"], [keyboardButton "❓FAQ", keyboardButton "☎️Тех.Поддержка"]]
 
+
+myReplyKeyboardMarkup :: [[KeyboardButton]] -> ReplyKeyboard
 myReplyKeyboardMarkup keyboard = ReplyKeyboardMarkup keyboard (Just True) (Just False) (Just True)
 
 
+inDataBase :: Int -> IO Bool
 inDataBase id = do
   conn <- postgresConnection
 
@@ -409,6 +431,7 @@ inDataBase id = do
   if count > 0 then return True else return False
 
 
+getStats :: IO String
 getStats = do
   conn <- postgresConnection
 
