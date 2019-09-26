@@ -321,6 +321,7 @@ findStr sub s
  | otherwise = fmap (+1) $ findStr sub $ drop 1 s
 
 
+getTitledLinks :: IO [LinkRow]
 getTitledLinks = do
   conn <- postgresConnection
   query_ conn "select * from links where title != ''" :: IO [LinkRow]
