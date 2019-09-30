@@ -97,6 +97,7 @@ myCycle x = do
   print "Finish!"
 
 
+telegramUpdate :: Update -> IO ()
 telegramUpdate update = do
   manager <- newManager tlsManagerSettings
 
@@ -118,6 +119,7 @@ telegramUpdate update = do
     Nothing -> print "No message!"
 
 
+botBody :: Int -> String -> IO ()
 botBody id text = do
     conn <- postgresConnection
 
