@@ -289,7 +289,7 @@ getTitle = do
     text <- ask
     let pos = findStr " " text
     case pos of
-      Just x -> return (substring x (length text - x) text)
+      Just x -> return (substring x (length text) text)
       _ -> return ""
 
 
