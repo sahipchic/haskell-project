@@ -4,6 +4,8 @@ import           Network.HTTP.Client      (newManager, managerSetProxy)
 import           Network.HTTP.Client.TLS  (tlsManagerSettings)
 import           Web.Telegram.API.Bot
 import           Control.Concurrent
+import           Control.Monad.Writer
+import           Control.Monad.Reader
 import           Data.Aeson.Lens
 import qualified Data.ByteString.Lazy as LBS
 import           Data.ByteString.Lazy.Char8 as Char8 (pack, unpack, dropWhile, reverse)
@@ -16,6 +18,7 @@ import           Network.Wreq
 import           Control.Lens
 import           Data.Char (isSpace)
 import           Data.Time.Clock
+import           Data.List
 
 
 
@@ -135,7 +138,7 @@ botBody id text = do
       if not res then do
         execute conn "insert into users (name, lastmes, user_id) values (?, ?, ?)" (username :: String, text :: String, id :: Int) :: IO GHC.Int.Int64
 
-        print (show "Not in bd!")
+        print "Not in bd!"
       else print "In bd!"
 
       mySendMessageWithButtons (fromIntegral id) "Приветствую тебя, друг!👋\n\n⚡️Я бот HiddenLinks и я единственный в природе бот, который прячет ссылки с таких файлобменников как:\n• 📀YandexDisk\n• ☁️Облако Mail  \n• 🛰Google Drive\n\n💁♂️Для чего я это делаю? Все чаще и чаще рабочие ссылки с инфопродуктами блокируются правообладателями, и это сильно затрудняет обучение. \n\n😎Именно поэтому приходится прятать ссылки от злодеев, которые находятся всегда на страже и радовать вас бесперебойным доступом к любимым материалам.\n\nУзнать как мной пользоваться вы сможете нажав в навигации кнопку ❓FAQ" startButtons
@@ -207,7 +210,7 @@ botBody id text = do
                   
                   xs <- query_ conn "select id from links order by id desc limit 1" :: IO [Only Int]
                   
-                  let last_id = (show (fromOnly (head xs)) :: String)
+                  let last_id = (show (fromOnly (head xs)))
                   
                   let reply = "Ваша ссылка на материал на облачном хранилище успешно добавлена в базу!\n\nПерсональный ID для данной ссылки: #" ++ last_id
                   
@@ -258,19 +261,17 @@ botBody id text = do
             
             "/add" -> do
               
-              let splited_text = mysplit text
+              let res = (runReader convo) text
               
-              let link_id_full = getByIndex splited_text 0
+              let title = snd res
               
-              let title = getByIndex splited_text 1
-              
-              let link_id = (substring 1 (length link_id_full) link_id_full)
-              
-              rows <- execute conn "update links set title=? where id=?" (text :: String, link_id :: String) :: IO GHC.Int.Int64
+              let reply_for_add = runWriter $ replyForAdd $ fst res
+
+              rows <- execute conn "update links set title=? where id=?" (text :: String, (fst reply_for_add) :: String) :: IO GHC.Int.Int64
 
               updateLastmes text id
 
-              let reply = "Описание к материалу с ID " ++ link_id_full ++ " успешно добавлено!"
+              let reply = snd reply_for_add
 
               mySendMessageHTML (fromIntegral id) (reply)
 
@@ -278,15 +279,30 @@ botBody id text = do
             _ -> print "Not in case"
 
 
-getByIndex :: [String] -> Int -> String
-getByIndex (x : xs) index = if index == 0 then x else getByIndex xs (index - 1)
+getId :: Reader String String
+getId = do
+    text <- ask
+    return ((words text) !! 0)
 
 
-mysplit :: String -> [String]
-mysplit [] = [""]
-mysplit (c:cs) | c == ' '  = "" : rest
-               | otherwise = (c : head rest) : tail rest
-    where rest = mysplit cs
+getTitle :: Reader String String
+getTitle = do
+    text <- ask
+    return (intercalate " " (words text))
+
+
+convo :: Reader String (String, String)
+convo = do
+    c1 <- getId
+    c2 <- getTitle
+    return (c1, c2)
+
+
+replyForAdd :: String -> Writer String String
+replyForAdd x = do
+        tell ("Описание к материалу с ID " ++ (show x) ++ " успешно добавлено!")
+        return (substring 1 (length x) x)
+
 
 
 sumStringList :: [String] -> String
