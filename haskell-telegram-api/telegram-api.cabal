@@ -95,6 +95,7 @@ executable telegram-api
                      , lens
                      , time
                      , lens-aeson
+                     , mtl
 
 test-suite telegram-api-test
   type:                exitcode-stdio-1.0

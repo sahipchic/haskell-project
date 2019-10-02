@@ -260,7 +260,6 @@ botBody id text = do
                 print "Wrong ID"
             
             "/add" -> do
-              
               let res = (runReader convo) text
               
               let title = snd res
@@ -288,7 +287,10 @@ getId = do
 getTitle :: Reader String String
 getTitle = do
     text <- ask
-    return (intercalate " " (words text))
+    let pos = findStr " " text
+    case pos of
+      Just x -> return (substring x (length text - x) text)
+      _ -> return ""
 
 
 convo :: Reader String (String, String)
@@ -303,6 +305,16 @@ replyForAdd x = do
         tell ("Описание к материалу с ID " ++ (show x) ++ " успешно добавлено!")
         return (substring 1 (length x) x)
 
+
+getByIndex :: [String] -> Int -> String
+getByIndex (x : xs) index = if index == 0 then x else getByIndex xs (index - 1)
+
+
+mysplit :: String -> [String]
+mysplit [] = [""]
+mysplit (c:cs) | c == ' '  = "" : rest
+               | otherwise = (c : head rest) : tail rest
+    where rest = mysplit cs
 
 
 sumStringList :: [String] -> String
