@@ -51,8 +51,8 @@
 • [Web.Telegram.API.Bot](https://github.com/klappvisor/haskell-telegram-api) - соответственно основная библиотека для взаимодействия с `Telegram API`  
 • Database.PostgreSQL.Simple - библиотека для взаимодействия с PostgreSQL  
 • Network.Wreq - либа для отправки `GET` и `POST` запросов на сервер моему обработчику ссылок  
-• Data.Aeson.Lens - самая адекватная библиотека по парсингу `JSON`  
-• Control.Concurrent - также будет не лишним упомянуть либу, которую я использовал для приостановки работы текущего треда на заданное количество миллисекунд для чека приходящих апдейтов от бота  
+• Data.Aeson  
+• Control.Concurrent
 
 
 
